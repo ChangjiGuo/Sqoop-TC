@@ -561,16 +561,29 @@ public class ImportTool extends com.cloudera.sqoop.tool.BaseSqoopTool {
       if(salt == null && options.getSqlQuery() != null) {
         salt = Integer.toHexString(options.getSqlQuery().hashCode());
       }
-      Path path = new Path(options.getTargetDir());
-      FileSystem targetFS = null;
+      String nameService = "";
       try {
-        targetFS = path.getFileSystem(options.getConf());
+        if (hdfsTargetDir != null && hdfsTargetDir.startsWith("/")) {
+          //parse nameservice
+          String nsStr = hdfsTargetDir.substring(1);
+          String ns = nsStr.substring(0,nsStr.indexOf("/"));
+          String dir = hdfsTargetDir.substring(hdfsTargetDir.indexOf(ns)+ns.length());
+          Configuration cf = options.getConf();
+          String absolutePath = cf.get("fs.viewfs.mounttable.dcfs.link./" + ns);
+          nameService = absolutePath.substring(0,absolutePath.lastIndexOf("/"));
+          options.setTargetDir(absolutePath + dir);
+          LOG.info("targetDir ---->>>> " + options.getTargetDir());
+        } else {
+          nameService = "viewfs://dcfs";
+        }
       } catch (Exception e) {
-        LOG.warn("get fs failed! ", e);
+        nameService = "viewfs://dcfs";
       }
-      outputPath = new Path(targetFS.getUri().toString() + "/" + AppendUtils.getTempAppendDir(salt).getName());
-
+      outputPath = new Path(nameService + "/tmp/sqoop_tmp/" + AppendUtils.getTempAppendDir(salt).getName());
+      LOG.info("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+      LOG.info("nameService ---->>>> " + nameService);
       LOG.info("Using temporary folder: " + outputPath.getName());
+
     } else {
       // Try in this order: target-dir or warehouse-dir
       if (hdfsTargetDir != null) {
